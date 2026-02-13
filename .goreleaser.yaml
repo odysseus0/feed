@@ -31,14 +31,13 @@ changelog:
       - "^docs:"
       - "^test:"
 
-homebrew_casks:
+brews:
   - name: feed
     repository:
       owner: odysseus0
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/odysseus0/feed
-    description: Local-first RSS CLI
-    binaries:
-      - feed
-    directory: Casks
+    description: "RSS CLI for AI agents. Bring your own algorithm."
+    license: MIT
+    directory: Formula
