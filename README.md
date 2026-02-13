@@ -2,16 +2,20 @@
 
 RSS gives you the content you chose, not what an algorithm chose. But 92 feeds produce 2600 entries a week, and you can't read them all.
 
-`feed` is a headless RSS engine that lets you pipe your feeds through an AI agent — your own algorithm.
+`feed` is a headless RSS engine that lets an AI agent read your feeds for you — your own algorithm.
 
 ```bash
+brew install odysseus0/tap/feed
 feed import hn-popular-blogs-2025.opml         # 92 curated tech blogs
-feed fetch                                      # 2600+ entries in seconds
-feed get entries -o json --limit 50 \
-  | claude -p "What's worth reading for a systems engineer? Give me the top 5 with one sentence each on why."
+
+# Install the agent skill, then just ask
+npx skills add odysseus0/feed
+claude "read my RSS feeds and surface what's worth reading today"
 ```
 
-Single Go binary. Local SQLite database you can query directly. No server, no daemon, no UI. Just structured data out of stdout, ready to pipe anywhere.
+The agent fetches your feeds, scans titles, reads the interesting ones in full, and presents a digest — grouped by theme, with summaries of why each post matters.
+
+Single Go binary. Local SQLite database you can query directly. No server, no daemon, no UI. Just structured data out of stdout, ready for agents and scripts.
 
 ```bash
 # It's just a SQLite file — bring your own queries
@@ -23,16 +27,28 @@ sqlite3 ~/.local/share/feed/feed.db "SELECT title, url FROM entries ORDER BY pub
 ## Install
 
 ```bash
+brew install odysseus0/tap/feed
+```
+
+Or with Go:
+
+```bash
 go install github.com/odysseus0/feed/cmd/feed@latest
 ```
 
-Or build from source:
+Includes a starter OPML with [92 popular tech blogs](hn-popular-blogs-2025.opml) curated from Hacker News discussions.
+
+### Agent skill
+
+`feed` ships with an agent skill that teaches your coding agent the full digest workflow:
 
 ```bash
-go build -o feed ./cmd/feed
+npx skills add odysseus0/feed
 ```
 
-Includes a starter OPML with [92 popular tech blogs](hn-popular-blogs-2025.opml) curated from Hacker News discussions.
+Then ask your agent to read your feeds — it handles fetching, triaging, reading, and summarizing autonomously.
+
+OpenClaw 🦞: `npx clawhub@latest install rss-digest` — dependency auto-install included.
 
 ## Usage
 
