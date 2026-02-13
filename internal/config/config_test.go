@@ -1,7 +1,6 @@
-package main
+package config
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -307,47 +306,5 @@ func TestLoadConfig_InvalidConfigReturnsError(t *testing.T) {
 				t.Fatalf("error %q does not contain path %q", msg, path)
 			}
 		})
-	}
-}
-
-func TestRootCommand_DBFlagOverridesEnvAndConfig(t *testing.T) {
-	clearConfigEnv(t)
-	home := t.TempDir()
-	setEnvForTest(t, "HOME", home)
-
-	configDB := filepath.Join(t.TempDir(), "from-config.db")
-	writeConfigFile(t, home, `db_path = "`+configDB+`"`+"\n")
-
-	envDB := filepath.Join(t.TempDir(), "from-env.db")
-	setEnvForTest(t, "FEED_DB_PATH", envDB)
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
-	}
-	if cfg.DBPath != envDB {
-		t.Fatalf("LoadConfig DBPath = %q, want %q", cfg.DBPath, envDB)
-	}
-
-	flagDB := filepath.Join(t.TempDir(), "from-flag.db")
-	root := NewRootCmd(cfg)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	root.SetOut(&stdout)
-	root.SetErr(&stderr)
-	root.SetArgs([]string{"--db", flagDB, "get", "stats", "-o", "json"})
-
-	if err := root.Execute(); err != nil {
-		t.Fatalf("root.Execute: %v (stderr: %s)", err, stderr.String())
-	}
-
-	if _, err := os.Stat(flagDB); err != nil {
-		t.Fatalf("expected flag DB at %q: %v", flagDB, err)
-	}
-	if _, err := os.Stat(envDB); !os.IsNotExist(err) {
-		t.Fatalf("expected env DB not to be opened, stat err: %v", err)
-	}
-	if _, err := os.Stat(configDB); !os.IsNotExist(err) {
-		t.Fatalf("expected config DB not to be opened, stat err: %v", err)
 	}
 }

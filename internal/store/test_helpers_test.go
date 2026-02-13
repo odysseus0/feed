@@ -1,16 +1,15 @@
-package main
+package store
 
 import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "feed.db")
-	db, err := openDB(dbPath)
+	db, err := OpenDB(dbPath)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -18,15 +17,6 @@ func newTestStore(t *testing.T) *Store {
 		_ = db.Close()
 	})
 	return NewStore(db)
-}
-
-func newTestFetcher(store *Store) *Fetcher {
-	cfg := Config{
-		HTTPTimeout:      5 * time.Second,
-		FetchConcurrency: 4,
-		UserAgent:        "feed-test/1.0",
-	}
-	return NewFetcher(store, NewRenderer(), cfg)
 }
 
 func mustCreateFeed(t *testing.T, store *Store, url string) Feed {

@@ -1,7 +1,8 @@
-package main
+package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -176,4 +177,126 @@ func TestStorePruneReadEntriesOlderThan(t *testing.T) {
 func ptrTime(t time.Time) *time.Time {
 	tt := t.UTC()
 	return &tt
+}
+
+func TestStoreNotFoundErrors(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	if err := s.DeleteFeed(ctx, 999); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("DeleteFeed err=%v, want ErrNotFound", err)
+	}
+	if _, err := s.GetEntry(ctx, 999); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetEntry err=%v, want ErrNotFound", err)
+	}
+	if err := s.UpdateEntryRead(ctx, 999, true); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("UpdateEntryRead err=%v, want ErrNotFound", err)
+	}
+}
+
+func TestStoreInvalidInputErrors(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	if _, err := s.ListEntries(ctx, EntryListOptions{Status: "bad", Limit: 5}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("ListEntries err=%v, want ErrInvalidInput", err)
+	}
+	if _, err := s.SearchEntries(ctx, SearchOptions{Query: " ", Limit: 5}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("SearchEntries err=%v, want ErrInvalidInput", err)
+	}
+}
+
+func TestStoreFeedQueriesAndBatchStatus(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	feedA := mustCreateFeed(t, s, "https://example.com/a.xml")
+	feedB := mustCreateFeed(t, s, "https://example.com/b.xml")
+
+	entryA1, _, err := s.UpsertEntry(ctx, UpsertEntryInput{FeedID: feedA.ID, GUID: "a1", Title: "A1"})
+	if err != nil {
+		t.Fatalf("upsert a1: %v", err)
+	}
+	entryA2, _, err := s.UpsertEntry(ctx, UpsertEntryInput{FeedID: feedA.ID, GUID: "a2", Title: "A2"})
+	if err != nil {
+		t.Fatalf("upsert a2: %v", err)
+	}
+	entryB1, _, err := s.UpsertEntry(ctx, UpsertEntryInput{FeedID: feedB.ID, GUID: "b1", Title: "B1"})
+	if err != nil {
+		t.Fatalf("upsert b1: %v", err)
+	}
+
+	if err := s.SetEntriesRead(ctx, []int64{entryA1, entryA2}, true); err != nil {
+		t.Fatalf("SetEntriesRead true: %v", err)
+	}
+	if err := s.SetEntriesRead(ctx, []int64{entryA2}, false); err != nil {
+		t.Fatalf("SetEntriesRead false: %v", err)
+	}
+	if err := s.SetEntriesStarred(ctx, []int64{entryB1}, true); err != nil {
+		t.Fatalf("SetEntriesStarred true: %v", err)
+	}
+	if err := s.SetEntriesStarred(ctx, []int64{entryB1}, false); err != nil {
+		t.Fatalf("SetEntriesStarred false: %v", err)
+	}
+
+	feeds, err := s.ListFeedsWithCounts(ctx)
+	if err != nil {
+		t.Fatalf("ListFeedsWithCounts: %v", err)
+	}
+	if len(feeds) != 2 {
+		t.Fatalf("expected 2 feeds, got %d", len(feeds))
+	}
+
+	fetched, err := s.ListFeedsForFetch(ctx, &feedA.ID)
+	if err != nil {
+		t.Fatalf("ListFeedsForFetch by id: %v", err)
+	}
+	if len(fetched) != 1 || fetched[0].ID != feedA.ID {
+		t.Fatalf("unexpected fetch list: %#v", fetched)
+	}
+	allFetch, err := s.ListFeedsForFetch(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListFeedsForFetch all: %v", err)
+	}
+	if len(allFetch) != 2 {
+		t.Fatalf("expected 2 feeds for fetch, got %d", len(allFetch))
+	}
+	missingID := int64(999)
+	if _, err := s.ListFeedsForFetch(ctx, &missingID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ListFeedsForFetch missing err=%v, want ErrNotFound", err)
+	}
+
+	gotA, err := s.GetFeedByID(ctx, feedA.ID)
+	if err != nil {
+		t.Fatalf("GetFeedByID: %v", err)
+	}
+	if gotA.ID != feedA.ID {
+		t.Fatalf("unexpected feed id %d", gotA.ID)
+	}
+
+	longErr := make([]byte, 800)
+	for i := range longErr {
+		longErr[i] = 'x'
+	}
+	if err := s.SetFeedError(ctx, feedA.ID, string(longErr)); err != nil {
+		t.Fatalf("SetFeedError: %v", err)
+	}
+	gotA, err = s.GetFeedByID(ctx, feedA.ID)
+	if err != nil {
+		t.Fatalf("GetFeedByID after SetFeedError: %v", err)
+	}
+	if gotA.ErrorCount != 1 {
+		t.Fatalf("expected error_count=1, got %d", gotA.ErrorCount)
+	}
+	if len(gotA.LastError) != 500 {
+		t.Fatalf("expected truncated last_error length 500, got %d", len(gotA.LastError))
+	}
+
+	feedURLs, err := s.ListFeedURLs(ctx)
+	if err != nil {
+		t.Fatalf("ListFeedURLs: %v", err)
+	}
+	if len(feedURLs) != 2 {
+		t.Fatalf("expected 2 feed urls, got %d", len(feedURLs))
+	}
 }

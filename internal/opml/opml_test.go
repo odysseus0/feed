@@ -1,10 +1,12 @@
-package main
+package opml
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tengjizhang/feed/internal/model"
 )
 
 func TestReadOPML_ParsesNestedAndDedupes(t *testing.T) {
@@ -34,7 +36,7 @@ func TestReadOPML_ParsesNestedAndDedupes(t *testing.T) {
 
 func TestWriteOPML_ContainsFeedURLs(t *testing.T) {
 	var b strings.Builder
-	feeds := []Feed{
+	feeds := []model.Feed{
 		{Title: "A", URL: "https://a.example/feed.xml", SiteURL: "https://a.example"},
 		{Title: "B", URL: "https://b.example/feed.xml", SiteURL: "https://b.example"},
 	}

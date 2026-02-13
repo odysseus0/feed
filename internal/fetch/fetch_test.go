@@ -1,13 +1,16 @@
-package main
+package fetch
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/tengjizhang/feed/internal/config"
+	"github.com/tengjizhang/feed/internal/store"
 )
 
 func TestFetcher_ConditionalFetchAndSanitization(t *testing.T) {
@@ -116,11 +119,14 @@ func TestFetcher_GUIDFallbackFromEntryURL(t *testing.T) {
 		t.Fatalf("fetch: %v", err)
 	}
 
-	var guid string
-	err := store.db.QueryRowContext(ctx, `SELECT guid FROM entries LIMIT 1`).Scan(&guid)
+	entries, err := store.ListEntries(ctx, EntryListOptions{Status: "all", Limit: 1})
 	if err != nil {
-		t.Fatalf("query guid: %v", err)
+		t.Fatalf("list entries: %v", err)
 	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one entry, got %d", len(entries))
+	}
+	guid := entries[0].GUID
 	if guid != entryURL {
 		t.Fatalf("expected guid fallback to link, got %q", guid)
 	}
@@ -227,8 +233,8 @@ func TestFetcherFetchSingleFeedNotFoundSetsError(t *testing.T) {
 }
 
 func TestFetcherFetchUnknownFeedID(t *testing.T) {
-	store := newTestStore(t)
-	fetcher := newTestFetcher(store)
+	s := newTestStore(t)
+	fetcher := newTestFetcher(s)
 	ctx := context.Background()
 
 	id := int64(999)
@@ -236,7 +242,55 @@ func TestFetcherFetchUnknownFeedID(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for unknown feed id")
 	}
-	if err != sql.ErrNoRows {
+	if err != store.ErrNotFound {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFetcherReportsPruneWarning(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	const feedXML = `<?xml version="1.0"?><rss version="2.0"><channel><title>T</title><link>https://example.com</link></channel></rss>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(feedXML))
+	}))
+	defer srv.Close()
+
+	feed := mustCreateFeed(t, s, srv.URL)
+	old := time.Now().AddDate(0, 0, -40).UTC()
+	entryID, _, err := s.UpsertEntry(ctx, UpsertEntryInput{
+		FeedID:      feed.ID,
+		GUID:        "old-guid",
+		Title:       "old",
+		PublishedAt: &old,
+	})
+	if err != nil {
+		t.Fatalf("upsert old entry: %v", err)
+	}
+	if err := s.UpdateEntryRead(ctx, entryID, true); err != nil {
+		t.Fatalf("mark old entry read: %v", err)
+	}
+
+	fetcher := NewFetcher(s, NewRenderer(), config.Config{
+		HTTPTimeout:      5 * time.Second,
+		FetchConcurrency: 2,
+		RetentionDays:    30,
+		UserAgent:        "feed-test/1.0",
+	})
+	rep, err := fetcher.Fetch(ctx, &feed.ID)
+	if err != nil {
+		t.Fatalf("fetch with retention: %v", err)
+	}
+	found := false
+	for _, warning := range rep.Warnings {
+		if strings.Contains(warning, "pruned 1 old entries") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected prune warning, got %#v", rep.Warnings)
 	}
 }
