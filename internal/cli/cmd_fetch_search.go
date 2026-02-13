@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 func newFetchCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
@@ -91,7 +91,10 @@ func newSearchCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Comm
 			return nil
 		},
 	}
+	var noFetch bool
 	cmd.Flags().Int64Var(&feedID, "feed", 0, "Filter by feed ID")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Result limit")
+	cmd.Flags().BoolVar(&noFetch, "no-fetch", false, "Accepted for consistency (search never auto-fetches)")
+	_ = noFetch
 	return cmd
 }

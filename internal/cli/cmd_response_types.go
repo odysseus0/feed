@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/tengjizhang/feed/internal/model"
+import "github.com/odysseus0/feed/internal/model"
 
 type AddFeedResponse struct {
 	Feed          model.Feed        `json:"feed"`

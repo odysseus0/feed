@@ -3,9 +3,9 @@ package cli
 import (
 	"database/sql"
 
-	"github.com/tengjizhang/feed/internal/config"
-	feedpkg "github.com/tengjizhang/feed/internal/fetch"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/config"
+	feedpkg "github.com/odysseus0/feed/internal/fetch"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 type App struct {

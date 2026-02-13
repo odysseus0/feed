@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 const (
@@ -25,7 +25,9 @@ func ErrorExitCode(err error) int {
 		return exitNotFound
 	default:
 		msg := strings.ToLower(err.Error())
-		if strings.Contains(msg, "invalid id") || strings.Contains(msg, "invalid output format") {
+		if strings.Contains(msg, "invalid id") || strings.Contains(msg, "invalid output format") ||
+			strings.Contains(msg, "unknown flag") || strings.Contains(msg, "unknown shorthand") ||
+			strings.Contains(msg, "unknown command") || strings.Contains(msg, "accepts") {
 			return exitInvalidInput
 		}
 		return exitInternal
@@ -43,7 +45,9 @@ func FormatError(err error) string {
 		return fmt.Sprintf("Error [not-found]: %v", err)
 	default:
 		msg := strings.ToLower(err.Error())
-		if strings.Contains(msg, "invalid id") || strings.Contains(msg, "invalid output format") {
+		if strings.Contains(msg, "invalid id") || strings.Contains(msg, "invalid output format") ||
+			strings.Contains(msg, "unknown flag") || strings.Contains(msg, "unknown shorthand") ||
+			strings.Contains(msg, "unknown command") || strings.Contains(msg, "accepts") {
 			return fmt.Sprintf("Error [invalid-input]: %v", err)
 		}
 		return fmt.Sprintf("Error [internal]: %v", err)

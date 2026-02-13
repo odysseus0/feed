@@ -1,6 +1,6 @@
 package store
 
-import "github.com/tengjizhang/feed/internal/model"
+import "github.com/odysseus0/feed/internal/model"
 
 type Feed = model.Feed
 type Entry = model.Entry

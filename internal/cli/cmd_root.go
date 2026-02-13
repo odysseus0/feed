@@ -2,11 +2,26 @@ package cli
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tengjizhang/feed/internal/config"
+	"github.com/odysseus0/feed/internal/config"
 )
+
+// Version is set via ldflags at build time, or read from Go module info.
+var Version = ""
+
+func init() {
+	if Version != "" {
+		return
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		Version = info.Main.Version
+	} else {
+		Version = "dev"
+	}
+}
 
 func NewRootCmd(cfg config.Config) *cobra.Command {
 	var dbPath string
@@ -23,6 +38,7 @@ func NewRootCmd(cfg config.Config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "feed",
 		Short:         "Local-first RSS CLI",
+		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

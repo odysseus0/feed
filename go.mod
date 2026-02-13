@@ -1,4 +1,4 @@
-module github.com/tengjizhang/feed
+module github.com/odysseus0/feed
 
 go 1.23
 

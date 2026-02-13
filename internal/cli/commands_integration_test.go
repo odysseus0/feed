@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tengjizhang/feed/internal/config"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/config"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 func runCLI(t *testing.T, cfgPath string, args ...string) {

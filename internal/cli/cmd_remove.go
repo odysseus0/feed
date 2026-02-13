@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 func newRemoveCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {

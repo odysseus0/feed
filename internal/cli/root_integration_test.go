@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tengjizhang/feed/internal/config"
+	"github.com/odysseus0/feed/internal/config"
 )
 
 func setEnvForTest(t *testing.T, key, value string) {

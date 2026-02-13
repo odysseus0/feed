@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tengjizhang/feed/internal/model"
+	"github.com/odysseus0/feed/internal/model"
 	"golang.org/x/net/html/charset"
 )
 

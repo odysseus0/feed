@@ -1,9 +1,9 @@
 package fetch
 
 import (
-	"github.com/tengjizhang/feed/internal/config"
-	"github.com/tengjizhang/feed/internal/model"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/config"
+	"github.com/odysseus0/feed/internal/model"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 type Config = config.Config

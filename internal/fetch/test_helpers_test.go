@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tengjizhang/feed/internal/config"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/config"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 func newTestStore(t *testing.T) *store.Store {

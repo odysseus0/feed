@@ -113,7 +113,7 @@ func (s *Store) ListEntries(ctx context.Context, opts EntryListOptions) ([]Entry
 	if len(where) > 0 {
 		query += ` WHERE ` + strings.Join(where, " AND ")
 	}
-	query += ` ORDER BY COALESCE(e.published_at, e.fetched_at) DESC LIMIT ?`
+	query += ` ORDER BY CASE WHEN e.published_at IS NULL OR e.published_at = '' THEN 1 ELSE 0 END, COALESCE(e.published_at, e.fetched_at) DESC LIMIT ?`
 	args = append(args, opts.Limit)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)

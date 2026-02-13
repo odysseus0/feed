@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tengjizhang/feed/internal/model"
-	"github.com/tengjizhang/feed/internal/store"
+	"github.com/odysseus0/feed/internal/model"
+	"github.com/odysseus0/feed/internal/store"
 )
 
 func seedEntry(t *testing.T, dbPath string) int64 {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tengjizhang/feed/internal/model"
+	"github.com/odysseus0/feed/internal/model"
 )
 
 func TestReadOPML_ParsesNestedAndDedupes(t *testing.T) {

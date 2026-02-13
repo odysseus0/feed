@@ -1,165 +1,123 @@
 # feed
 
-A local-first RSS CLI built in Go.
+RSS gives you the content you chose, not what an algorithm chose. But 92 feeds produce 2600 entries a week, and you can't read them all.
 
-`feed` is a single-binary, headless RSS engine for people who want scriptable feed workflows without running a server. It fetches feeds, stores entries in SQLite, tracks read/star state, and supports full-text search.
+`feed` is a headless RSS engine that lets you pipe your feeds through an AI agent — your own algorithm.
 
-## Highlights
+```bash
+feed import hn-popular-blogs-2025.opml         # 92 curated tech blogs
+feed fetch                                      # 2600+ entries in seconds
+feed get entries -o json --limit 50 \
+  | claude -p "What's worth reading for a systems engineer? Give me the top 5 with one sentence each on why."
+```
 
-- Single binary (`go build`), no daemon, no web UI.
-- SQLite storage (`modernc.org/sqlite`, no CGO required).
-- RSS/Atom/JSON Feed parsing.
-- Feed discovery from website HTML (`<link rel="alternate">`).
-- Pre-computed Markdown content for fast reads.
-- Entry state management (`read`, `starred`) including batch updates.
-- Full-text search via SQLite FTS5.
-- OPML import/export.
-- Human-readable table output plus JSON output for automation.
+Single Go binary. Local SQLite database you can query directly. No server, no daemon, no UI. Just structured data out of stdout, ready to pipe anywhere.
+
+```bash
+# It's just a SQLite file — bring your own queries
+sqlite3 ~/.local/share/feed/feed.db "SELECT title, url FROM entries ORDER BY published_at DESC LIMIT 10"
+```
+
+<!-- TODO: terminal recording GIF here -->
 
 ## Install
+
+```bash
+go install github.com/odysseus0/feed/cmd/feed@latest
+```
+
+Or build from source:
 
 ```bash
 go build -o feed ./cmd/feed
 ```
 
-Optional: move `feed` into your PATH.
+Includes a starter OPML with [92 popular tech blogs](hn-popular-blogs-2025.opml) curated from Hacker News discussions.
 
-Compatibility: `go build -o feed .` still works during the transition, but `./cmd/feed` is the canonical entrypoint.
-
-## Quickstart
+## Usage
 
 ```bash
-# Import starter subscriptions
-./feed import hn-popular-blogs-2025.opml
+# Add a feed (auto-discovers feed URL from any webpage)
+feed add feed https://simonwillison.net
 
-# Fetch all feeds
-./feed fetch
+# Fetch all feeds (or just one by ID)
+feed fetch
+feed fetch 42
 
-# Browse unread entries
-./feed get entries --limit=20
+# Browse entries
+feed get entries                    # unread, newest first
+feed get entries --status all       # everything
+feed get entries --feed 1 -o json   # one feed, as JSON
 
-# Read one entry
-./feed get entry <id>
+# Read a full post (rendered as Markdown)
+feed get entry 446
 
-# Mark state
-./feed update entry <id> --read
-./feed update entry <id> --starred
+# Search across everything
+feed search "rust async"
 
-# Search
-./feed search "rust"
+# Triage
+feed update entry 446 --read
+feed update entry 446 --starred
+feed update entries --read 100 101 102 103   # batch
+
+# Manage feeds
+feed get feeds              # list all with unread counts
+feed remove feed 42
+feed import feeds.opml
+feed export > backup.opml
+
+# Stats
+feed get stats
 ```
 
-## CLI Grammar
+### Output modes
 
-```text
-feed <verb> <resource> [id] [flags]
-```
+Every command supports `-o table` (default), `-o json`, or `-o wide`. Status messages go to stderr, data to stdout — pipe-friendly by design.
 
-Core commands:
+## Why this exists
 
-- `feed get entries|entry|feeds|stats`
-- `feed add feed <url>`
-- `feed remove feed <id>`
-- `feed update entry|entries ...`
-- `feed fetch [id]`
-- `feed import <file.opml>`
-- `feed export`
-- `feed search <query>`
+Platform algorithms are optimized for the platform — engagement, ads, time on site. An LLM you run locally is optimized for you. RSS got you off the content treadmill. `feed` + an agent gives you control back.
 
-Run `./feed --help` and `./feed <command> --help` for full flag details.
+Newsboat, miniflux, and NetNewsWire are readers. This is plumbing. They have UIs; this has clean table output for agents and structured data for scripts. `feed` is the missing layer between RSS and whatever you want to do with it — LLM triage, vault ingestion, notification pipelines, or scripts you haven't written yet.
 
-## Output Modes
+Bring your own algorithm.
 
-- Default: table
-- `-o json`: machine-readable JSON
-- `-o wide`: expanded table columns
+## How it works
 
-Status/progress messages are written to `stderr` so `stdout` remains pipe-friendly.
-
-## Data Location
-
-Default database path:
-
-```text
-~/.local/share/feed/feed.db
-```
-
-Override with:
-
-```bash
-./feed --db /path/to/feed.db ...
-# or
-export FEED_DB_PATH=/path/to/feed.db
-```
+- **Feed discovery** — `feed add https://example.com` parses `<link rel="alternate">` tags. No need to find the feed URL yourself.
+- **Concurrent fetching** — 10 workers by default with conditional requests (ETag/If-Modified-Since). Polite and fast.
+- **Pre-computed Markdown** — HTML content is converted to Markdown at fetch time. `feed get entry <id>` renders instantly.
+- **Full-text search** — SQLite FTS5 across titles, summaries, and content.
+- **Auto-fetch on staleness** — `feed get entries` fetches automatically if feeds are >30min stale. Skip with `--no-fetch`.
+- **Batch state management** — Mark 50 entries as read in one command. Essential for agent triage workflows.
 
 ## Configuration
 
-Configuration precedence (highest to lowest):
+`feed` works out of the box with sane defaults. Optional config via `~/.config/feed/config.toml` or environment variables.
 
-1. CLI flags
-2. Environment variables
-3. Config file
-4. Built-in defaults
+| Setting | Env var | Default |
+|---------|---------|---------|
+| Database path | `FEED_DB_PATH` | `~/.local/share/feed/feed.db` |
+| Staleness threshold | `FEED_STALE_MINUTES` | `30` |
+| Fetch workers | `FEED_FETCH_CONCURRENCY` | `10` |
+| Retention (days) | `FEED_RETENTION_DAYS` | `0` (keep all) |
+| HTTP timeout | `FEED_HTTP_TIMEOUT_SECONDS` | `20` |
 
-Optional config file lookup order:
+Precedence: CLI flags > env vars > config file > defaults.
 
-1. `$XDG_CONFIG_HOME/feed/config.toml`
-2. `~/.config/feed/config.toml`
+## Origin
 
-If no config file exists, `feed` continues with env/default values.
-
-Supported config file keys:
-
-- `db_path`
-- `stale_minutes`
-- `fetch_concurrency`
-- `retention_days`
-
-Minimal `config.toml` example:
-
-```toml
-db_path = "/Users/you/.local/share/feed/feed.db"
-stale_minutes = 30
-fetch_concurrency = 10
-retention_days = 0
-```
-
-Unknown config keys are rejected.
-
-Environment variables:
-
-- `FEED_DB_PATH`: database file path
-- `FEED_STALE_MINUTES`: auto-fetch staleness threshold (default `30`)
-- `FEED_FETCH_CONCURRENCY`: concurrent feed fetch workers (default `10`)
-- `FEED_RETENTION_DAYS`: prune read, unstarred entries older than N days (`0` = disabled)
-- `FEED_HTTP_TIMEOUT_SECONDS`: HTTP timeout (default `20`)
-- `FEED_USER_AGENT`: outgoing user-agent string
-
-## Architecture
-
-- Entrypoint: `cmd/feed/main.go` (with root compatibility shim in `main.go`)
-- CLI layer: `internal/cli`
-- Config: `internal/config`
-- Storage/query layer + migrations: `internal/store`
-- Fetch/discovery/rendering/sanitization: `internal/fetch`
-- OPML support: `internal/opml`
-- Shared domain types: `internal/model`
+Inspired by [Karpathy's RSS revival tweet](https://x.com/karpathy/status/2018043254986703167) (Feb 2026): "download a client, or vibe code one." We vibe coded the headless engine for agents.
 
 ## Development
 
 ```bash
 go test ./...
-go test -cover ./...
 go vet ./...
 ```
 
-Current regression suite covers discovery, fetch behavior (including conditional requests), sanitization, OPML parsing, state transitions, and pruning logic.
+Pure Go, no CGO. `go install` works on any platform.
 
-## Scope
+## License
 
-This project is intentionally local and non-daemonized:
-
-- No background service
-- No cross-device sync
-- No built-in TUI/web UI
-- No bundled article scraping engine
+MIT

@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	feedpkg "github.com/tengjizhang/feed/internal/fetch"
-	"github.com/tengjizhang/feed/internal/opml"
+	feedpkg "github.com/odysseus0/feed/internal/fetch"
+	"github.com/odysseus0/feed/internal/opml"
 )
 
 type ImportResult struct {
