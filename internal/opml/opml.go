@@ -1,4 +1,4 @@
-package main
+package opml
 
 import (
 	"encoding/xml"
@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/tengjizhang/feed/internal/model"
 	"golang.org/x/net/html/charset"
 )
 
@@ -68,7 +69,7 @@ func ReadOPML(path string) ([]string, error) {
 	return uniqueStrings(urls), nil
 }
 
-func WriteOPML(w io.Writer, feeds []Feed) error {
+func WriteOPML(w io.Writer, feeds []model.Feed) error {
 	outlines := make([]opmlOutline, 0, len(feeds))
 	for _, f := range feeds {
 		outlines = append(outlines, opmlOutline{
@@ -103,6 +104,13 @@ func WriteOPML(w io.Writer, feeds []Feed) error {
 		return err
 	}
 	return enc.Flush()
+}
+
+func fallback(v, fb string) string {
+	if strings.TrimSpace(v) == "" {
+		return fb
+	}
+	return v
 }
 
 func uniqueStrings(in []string) []string {

@@ -1,10 +1,11 @@
-package main
+package cli
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/tengjizhang/feed/internal/store"
 )
 
 func newRemoveCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
@@ -29,10 +30,10 @@ func newRemoveFeedCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.
 
 			id, err := parseID(args[0])
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
 			}
 			if err := app.store.DeleteFeed(cmd.Context(), id); err != nil {
-				return err
+				return fmt.Errorf("remove feed: %w", err)
 			}
 			if getOutput() == OutputJSON {
 				return writeJSON(os.Stdout, RemoveFeedResponse{RemovedFeedID: id})

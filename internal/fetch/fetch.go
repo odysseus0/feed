@@ -1,4 +1,4 @@
-package main
+package fetch
 
 import (
 	"bytes"
@@ -53,6 +53,14 @@ func (f *Fetcher) Fetch(ctx context.Context, feedID *int64) (FetchReport, error)
 	return f.FetchWithProgress(ctx, feedID, nil)
 }
 
+func (f *Fetcher) HTTPClient() *http.Client {
+	return f.client
+}
+
+func (f *Fetcher) DiscoverFeedURL(ctx context.Context, rawURL string) (string, error) {
+	return DiscoverFeedURL(ctx, f.client, gofeed.NewParser(), rawURL, f.cfg.UserAgent)
+}
+
 func (f *Fetcher) FetchWithProgress(ctx context.Context, feedID *int64, onResult fetchProgressFn) (FetchReport, error) {
 	feeds, err := f.store.ListFeedsForFetch(ctx, feedID)
 	if err != nil {
@@ -70,7 +78,12 @@ func (f *Fetcher) FetchWithProgress(ctx context.Context, feedID *int64, onResult
 	report.Results = results
 
 	if f.cfg.RetentionDays > 0 {
-		_, _ = f.store.PruneReadEntriesOlderThan(ctx, f.cfg.RetentionDays)
+		pruned, pruneErr := f.store.PruneReadEntriesOlderThan(ctx, f.cfg.RetentionDays)
+		if pruneErr != nil {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("prune failed: %v", pruneErr))
+		} else if pruned > 0 {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("pruned %d old entries", pruned))
+		}
 	}
 
 	report.EndedAt = time.Now()
@@ -258,7 +271,9 @@ func (f *Fetcher) storeFeedItems(ctx context.Context, feedID int64, items []*gof
 
 func (f *Fetcher) failFeed(ctx context.Context, feedID int64, result FetchResult, err error) FetchResult {
 	result.Error = err.Error()
-	_ = f.store.SetFeedError(ctx, feedID, result.Error)
+	if persistErr := f.store.SetFeedError(ctx, feedID, result.Error); persistErr != nil {
+		result.Error = fmt.Sprintf("%s; additionally failed to persist feed error: %v", result.Error, persistErr)
+	}
 	return result
 }
 
@@ -270,11 +285,4 @@ func summarize(raw string, renderer *Renderer) string {
 	raw = SanitizeHTML(raw)
 	md := renderer.HTMLToMarkdown(raw)
 	return compactText(md, 280)
-}
-
-func fallback(v, fb string) string {
-	if strings.TrimSpace(v) == "" {
-		return fb
-	}
-	return v
 }

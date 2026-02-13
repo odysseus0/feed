@@ -1,10 +1,11 @@
-package main
+package cli
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/tengjizhang/feed/internal/store"
 )
 
 func newFetchCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
@@ -21,7 +22,7 @@ func newFetchCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Comma
 			if len(args) == 1 {
 				v, err := parseID(args[0])
 				if err != nil {
-					return err
+					return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
 				}
 				id = &v
 			}
@@ -39,7 +40,10 @@ func newFetchCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Comma
 				fmt.Fprintf(os.Stderr, "[%d/%d] %s -> %d new, %d updated\n", done, total, label, result.NewEntries, result.Updated)
 			})
 			if err != nil {
-				return err
+				return fmt.Errorf("fetch feeds: %w", err)
+			}
+			for _, warning := range rep.Warnings {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
 			}
 			switch getOutput() {
 			case OutputJSON:
@@ -74,7 +78,7 @@ func newSearchCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Comm
 				Limit: limit,
 			})
 			if err != nil {
-				return err
+				return fmt.Errorf("search entries: %w", err)
 			}
 			switch getOutput() {
 			case OutputJSON:

@@ -1,10 +1,12 @@
-package main
+package cli
+
+import "github.com/tengjizhang/feed/internal/model"
 
 type AddFeedResponse struct {
-	Feed          Feed        `json:"feed"`
-	Inserted      bool        `json:"inserted"`
-	DiscoveredURL string      `json:"discovered_url"`
-	FetchReport   FetchReport `json:"fetch_report"`
+	Feed          model.Feed        `json:"feed"`
+	Inserted      bool              `json:"inserted"`
+	DiscoveredURL string            `json:"discovered_url"`
+	FetchReport   model.FetchReport `json:"fetch_report"`
 }
 
 type RemoveFeedResponse struct {

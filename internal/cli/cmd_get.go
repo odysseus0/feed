@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tengjizhang/feed/internal/store"
 )
 
 func newGetCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
@@ -40,7 +41,7 @@ func newGetEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.
 			if !noFetch {
 				hasFeeds, stale, lastFetched, err := app.store.GetFetchStaleness(ctx, app.cfg.StaleAfter)
 				if err != nil {
-					return err
+					return fmt.Errorf("check fetch staleness: %w", err)
 				}
 				if hasFeeds && stale {
 					msg := "Fetching feeds"
@@ -52,7 +53,10 @@ func newGetEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.
 					fmt.Fprintln(os.Stderr, msg+"...")
 					rep, err := app.fetcher.Fetch(ctx, nil)
 					if err != nil {
-						return err
+						return fmt.Errorf("fetch feeds: %w", err)
+					}
+					for _, warning := range rep.Warnings {
+						fmt.Fprintf(os.Stderr, "warning: %s\n", warning)
 					}
 					errCount := 0
 					for _, r := range rep.Results {
@@ -72,7 +76,7 @@ func newGetEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.
 				Limit:  limit,
 			})
 			if err != nil {
-				return err
+				return fmt.Errorf("list entries: %w", err)
 			}
 
 			switch getOutput() {
@@ -106,11 +110,11 @@ func newGetEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Co
 			}
 			id, err := parseID(args[0])
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
 			}
 			entry, err := app.store.GetEntry(cmd.Context(), id)
 			if err != nil {
-				return err
+				return fmt.Errorf("get entry: %w", err)
 			}
 
 			if getOutput() == OutputJSON {
@@ -151,7 +155,7 @@ func newGetFeedsCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Co
 			}
 			feeds, err := app.store.ListFeedsWithCounts(cmd.Context())
 			if err != nil {
-				return err
+				return fmt.Errorf("list feeds: %w", err)
 			}
 			switch getOutput() {
 			case OutputJSON:
@@ -178,7 +182,7 @@ func newGetStatsCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Co
 			}
 			stats, err := app.store.GetStats(cmd.Context())
 			if err != nil {
-				return err
+				return fmt.Errorf("get stats: %w", err)
 			}
 			if getOutput() == OutputJSON {
 				return writeJSON(os.Stdout, stats)

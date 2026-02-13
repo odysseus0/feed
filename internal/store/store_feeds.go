@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -26,12 +26,20 @@ func (s *Store) CreateFeed(ctx context.Context, url string) (Feed, bool, error) 
 
 func (s *Store) GetFeedByURL(ctx context.Context, url string) (Feed, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+feedBaseColumns+` FROM feeds WHERE url = ?`, url)
-	return scanFeedRow(row)
+	feed, err := scanFeedRow(row)
+	if err != nil {
+		return Feed{}, wrapNotFound("feed", err)
+	}
+	return feed, nil
 }
 
 func (s *Store) GetFeedByID(ctx context.Context, id int64) (Feed, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+feedBaseColumns+` FROM feeds WHERE id = ?`, id)
-	return scanFeedRow(row)
+	feed, err := scanFeedRow(row)
+	if err != nil {
+		return Feed{}, wrapNotFound("feed", err)
+	}
+	return feed, nil
 }
 
 func (s *Store) DeleteFeed(ctx context.Context, id int64) error {
@@ -41,7 +49,7 @@ func (s *Store) DeleteFeed(ctx context.Context, id int64) error {
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return sql.ErrNoRows
+		return ErrNotFound
 	}
 	return nil
 }
@@ -111,7 +119,7 @@ func (s *Store) ListFeedsForFetch(ctx context.Context, id *int64) ([]Feed, error
 		return nil, err
 	}
 	if id != nil && len(feeds) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, ErrNotFound
 	}
 	return feeds, nil
 }

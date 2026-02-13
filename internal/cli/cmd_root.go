@@ -1,14 +1,14 @@
-package main
+package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tengjizhang/feed/internal/config"
 )
 
-func NewRootCmd(cfg Config) *cobra.Command {
+func NewRootCmd(cfg config.Config) *cobra.Command {
 	var dbPath string
 	var output string
 	var outFmt OutputFormat
@@ -77,10 +77,6 @@ func parseOutputFormat(raw string) (OutputFormat, error) {
 	}
 }
 
-func printCmdError(err error) {
-	fmt.Fprintln(os.Stderr, "Error:", err)
-}
-
 func requiresApp(cmd *cobra.Command) bool {
 	for c := cmd; c != nil; c = c.Parent() {
 		name := c.Name()
@@ -89,4 +85,16 @@ func requiresApp(cmd *cobra.Command) bool {
 		}
 	}
 	return true
+}
+
+func Execute() error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	cmd := NewRootCmd(cfg)
+	if err := cmd.Execute(); err != nil {
+		return fmt.Errorf("execute command: %w", err)
+	}
+	return nil
 }

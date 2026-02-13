@@ -1,4 +1,4 @@
-package main
+package model
 
 import "time"
 
@@ -66,6 +66,7 @@ type FetchReport struct {
 	StartedAt time.Time     `json:"started_at"`
 	EndedAt   time.Time     `json:"ended_at"`
 	Results   []FetchResult `json:"results"`
+	Warnings  []string      `json:"warnings,omitempty"`
 }
 
 type EntryListOptions struct {

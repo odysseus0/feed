@@ -1,12 +1,27 @@
-package main
+package store
 
 import (
 	"context"
+	"database/sql"
 )
 
 func (s *Store) ensureEntryStatus(ctx context.Context, id int64) error {
+	if err := s.ensureEntryExists(ctx, id); err != nil {
+		return err
+	}
 	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO entry_status(entry_id) VALUES (?)`, id)
 	return err
+}
+
+func (s *Store) ensureEntryExists(ctx context.Context, id int64) error {
+	var exists int
+	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM entries WHERE id = ?`, id).Scan(&exists); err != nil {
+		if err == sql.ErrNoRows {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Store) UpdateEntryRead(ctx context.Context, id int64, read bool) error {
@@ -99,6 +114,13 @@ func (s *Store) batchUpdateEntryStatus(ctx context.Context, ids []int64, updateQ
 	defer updStmt.Close()
 
 	for _, id := range ids {
+		var exists int
+		if err = tx.QueryRowContext(ctx, `SELECT 1 FROM entries WHERE id = ?`, id).Scan(&exists); err != nil {
+			if err == sql.ErrNoRows {
+				return ErrNotFound
+			}
+			return err
+		}
 		if _, err = insStmt.ExecContext(ctx, id); err != nil {
 			return err
 		}

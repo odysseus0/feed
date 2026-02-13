@@ -1,4 +1,4 @@
-package main
+package fetch
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-func normalizeURL(raw string) (string, error) {
+func NormalizeURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", fmt.Errorf("url is required")
@@ -33,7 +33,7 @@ func normalizeURL(raw string) (string, error) {
 }
 
 func DiscoverFeedURL(ctx context.Context, client *http.Client, parser *gofeed.Parser, rawURL, userAgent string) (string, error) {
-	normalized, err := normalizeURL(rawURL)
+	normalized, err := NormalizeURL(rawURL)
 	if err != nil {
 		return "", err
 	}

@@ -1,10 +1,11 @@
-package main
+package cli
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/tengjizhang/feed/internal/store"
 )
 
 func newUpdateCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
@@ -20,6 +21,8 @@ func newUpdateCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Comm
 func newUpdateEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
 	var markRead bool
 	var markUnread bool
+	var markStarred bool
+	var markUnstarred bool
 	var toggleStar bool
 
 	cmd := &cobra.Command{
@@ -34,7 +37,7 @@ func newUpdateEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra
 
 			id, err := parseID(args[0])
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
 			}
 			selected := 0
 			if markRead {
@@ -43,11 +46,17 @@ func newUpdateEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra
 			if markUnread {
 				selected++
 			}
+			if markStarred {
+				selected++
+			}
+			if markUnstarred {
+				selected++
+			}
 			if toggleStar {
 				selected++
 			}
 			if selected != 1 {
-				return fmt.Errorf("choose exactly one of --read, --unread, --starred")
+				return fmt.Errorf("%w: choose exactly one of --read, --unread, --starred, --unstarred, --toggle-starred", store.ErrInvalidInput)
 			}
 
 			resp := UpdateEntryResponse{EntryID: id}
@@ -60,13 +69,22 @@ func newUpdateEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra
 				err = app.store.UpdateEntryRead(cmd.Context(), id, false)
 				v := false
 				resp.Read = &v
+			case markStarred:
+				err = app.store.SetEntriesStarred(cmd.Context(), []int64{id}, true)
+				v := true
+				resp.Starred = &v
+			case markUnstarred:
+				err = app.store.SetEntriesStarred(cmd.Context(), []int64{id}, false)
+				v := false
+				resp.Starred = &v
 			case toggleStar:
 				var starred bool
 				starred, err = app.store.ToggleEntryStarred(cmd.Context(), id)
 				resp.Starred = &starred
+				fmt.Fprintln(os.Stderr, "warning: --toggle-starred is deprecated; use --starred or --unstarred")
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("update entry: %w", err)
 			}
 
 			if getOutput() == OutputJSON {
@@ -83,13 +101,17 @@ func newUpdateEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra
 
 	cmd.Flags().BoolVar(&markRead, "read", false, "Mark entry as read")
 	cmd.Flags().BoolVar(&markUnread, "unread", false, "Mark entry as unread")
-	cmd.Flags().BoolVar(&toggleStar, "starred", false, "Toggle starred")
+	cmd.Flags().BoolVar(&markStarred, "starred", false, "Mark entry as starred")
+	cmd.Flags().BoolVar(&markUnstarred, "unstarred", false, "Mark entry as unstarred")
+	cmd.Flags().BoolVar(&toggleStar, "toggle-starred", false, "Toggle starred (deprecated)")
 	return cmd
 }
 
 func newUpdateEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
 	var markRead bool
+	var markUnread bool
 	var markStarred bool
+	var markUnstarred bool
 
 	cmd := &cobra.Command{
 		Use:   "entries [id] [id...]",
@@ -104,21 +126,27 @@ func newUpdateEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cob
 			if markRead {
 				selected++
 			}
+			if markUnread {
+				selected++
+			}
 			if markStarred {
 				selected++
 			}
+			if markUnstarred {
+				selected++
+			}
 			if selected != 1 {
-				return fmt.Errorf("choose exactly one of --read or --starred")
+				return fmt.Errorf("%w: choose exactly one of --read, --unread, --starred, --unstarred", store.ErrInvalidInput)
 			}
 
 			ids, err := parseIDs(args)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
 			}
 
 			if markRead {
 				if err := app.store.SetEntriesRead(cmd.Context(), ids, true); err != nil {
-					return err
+					return fmt.Errorf("update entries read: %w", err)
 				}
 				if getOutput() == OutputJSON {
 					v := true
@@ -132,24 +160,58 @@ func newUpdateEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cob
 				return nil
 			}
 
-			if err := app.store.SetEntriesStarred(cmd.Context(), ids, true); err != nil {
-				return err
+			if markUnread {
+				if err := app.store.SetEntriesRead(cmd.Context(), ids, false); err != nil {
+					return fmt.Errorf("update entries read: %w", err)
+				}
+				if getOutput() == OutputJSON {
+					v := false
+					return writeJSON(os.Stdout, BatchUpdateEntriesResponse{
+						Updated: len(ids),
+						IDs:     ids,
+						Read:    &v,
+					})
+				}
+				fmt.Fprintf(os.Stdout, "Marked %d entries as unread\n", len(ids))
+				return nil
+			}
+
+			if markStarred {
+				if err := app.store.SetEntriesStarred(cmd.Context(), ids, true); err != nil {
+					return fmt.Errorf("update entries starred: %w", err)
+				}
+				if getOutput() == OutputJSON {
+					v := true
+					return writeJSON(os.Stdout, BatchUpdateEntriesResponse{
+						Updated: len(ids),
+						IDs:     ids,
+						Starred: &v,
+					})
+				}
+				fmt.Fprintf(os.Stdout, "Marked %d entries as starred\n", len(ids))
+				return nil
+			}
+
+			if err := app.store.SetEntriesStarred(cmd.Context(), ids, false); err != nil {
+				return fmt.Errorf("update entries starred: %w", err)
 			}
 			if getOutput() == OutputJSON {
-				v := true
+				v := false
 				return writeJSON(os.Stdout, BatchUpdateEntriesResponse{
 					Updated: len(ids),
 					IDs:     ids,
 					Starred: &v,
 				})
 			}
-			fmt.Fprintf(os.Stdout, "Starred %d entries\n", len(ids))
+			fmt.Fprintf(os.Stdout, "Marked %d entries as unstarred\n", len(ids))
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&markRead, "read", false, "Mark all provided IDs as read")
-	cmd.Flags().BoolVar(&markStarred, "starred", false, "Star all provided IDs")
+	cmd.Flags().BoolVar(&markUnread, "unread", false, "Mark all provided IDs as unread")
+	cmd.Flags().BoolVar(&markStarred, "starred", false, "Mark all provided IDs as starred")
+	cmd.Flags().BoolVar(&markUnstarred, "unstarred", false, "Mark all provided IDs as unstarred")
 	return cmd
 }
 

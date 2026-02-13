@@ -1,4 +1,4 @@
-package main
+package store
 
 import (
 	"context"
@@ -103,7 +103,7 @@ func (s *Store) ListEntries(ctx context.Context, opts EntryListOptions) ([]Entry
 		where = append(where, "COALESCE(es.read, 0) = 1")
 	case "all":
 	default:
-		return nil, fmt.Errorf("invalid status %q (expected unread|read|all)", opts.Status)
+		return nil, fmt.Errorf("%w: invalid status %q (expected unread|read|all)", ErrInvalidInput, opts.Status)
 	}
 
 	query := `SELECT ` + entrySelectColumns + `
@@ -141,12 +141,16 @@ func (s *Store) GetEntry(ctx context.Context, id int64) (Entry, error) {
 		LEFT JOIN entry_status es ON es.entry_id = e.id
 		WHERE e.id = ?
 	`, id)
-	return scanEntry(row)
+	entry, err := scanEntry(row)
+	if err != nil {
+		return Entry{}, wrapNotFound("entry", err)
+	}
+	return entry, nil
 }
 
 func (s *Store) SearchEntries(ctx context.Context, opts SearchOptions) ([]Entry, error) {
 	if strings.TrimSpace(opts.Query) == "" {
-		return nil, fmt.Errorf("query must not be empty")
+		return nil, fmt.Errorf("%w: query must not be empty", ErrInvalidInput)
 	}
 	if opts.Limit <= 0 {
 		opts.Limit = 50

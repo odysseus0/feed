@@ -1,10 +1,9 @@
-package main
+package cli
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/mmcdole/gofeed"
 	"github.com/spf13/cobra"
 )
 
@@ -28,9 +27,9 @@ func newAddFeedCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Com
 				return err
 			}
 
-			discovered, err := DiscoverFeedURL(cmd.Context(), app.fetcher.client, gofeed.NewParser(), args[0], app.cfg.UserAgent)
+			discovered, err := app.fetcher.DiscoverFeedURL(cmd.Context(), args[0])
 			if err != nil {
-				return err
+				return fmt.Errorf("discover feed url: %w", err)
 			}
 			if discovered != args[0] {
 				fmt.Fprintf(os.Stderr, "Discovered feed URL: %s\n", discovered)
@@ -38,11 +37,11 @@ func newAddFeedCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Com
 
 			feed, inserted, err := app.store.CreateFeed(cmd.Context(), discovered)
 			if err != nil {
-				return err
+				return fmt.Errorf("create feed: %w", err)
 			}
 			report, err := app.fetcher.Fetch(cmd.Context(), &feed.ID)
 			if err != nil {
-				return err
+				return fmt.Errorf("initial fetch: %w", err)
 			}
 
 			feed, _ = app.store.GetFeedByID(cmd.Context(), feed.ID)
@@ -58,7 +57,7 @@ func newAddFeedCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Com
 			if inserted {
 				fmt.Fprintf(os.Stdout, "Added feed %d: %s\n", feed.ID, fallback(feed.Title, feed.URL))
 			} else {
-				fmt.Fprintf(os.Stdout, "Feed already exists (%d): %s\n", feed.ID, fallback(feed.Title, feed.URL))
+				fmt.Fprintf(os.Stdout, "Skipped existing feed (%d): %s\n", feed.ID, fallback(feed.Title, feed.URL))
 			}
 			if len(report.Results) > 0 {
 				result := report.Results[0]
