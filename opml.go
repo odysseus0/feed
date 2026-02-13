@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"golang.org/x/net/html/charset"
 )
 
 type opmlDoc struct {
@@ -23,12 +25,14 @@ type opmlBody struct {
 }
 
 type opmlOutline struct {
-	Text     string        `xml:"text,attr,omitempty"`
-	Title    string        `xml:"title,attr,omitempty"`
-	Type     string        `xml:"type,attr,omitempty"`
-	XMLURL   string        `xml:"xmlUrl,attr,omitempty"`
-	HTMLURL  string        `xml:"htmlUrl,attr,omitempty"`
-	Outlines []opmlOutline `xml:"outline,omitempty"`
+	Text         string        `xml:"text,attr,omitempty"`
+	Title        string        `xml:"title,attr,omitempty"`
+	Type         string        `xml:"type,attr,omitempty"`
+	XMLURL       string        `xml:"xmlUrl,attr,omitempty"`
+	XMLURLLower  string        `xml:"xmlurl,attr,omitempty"`
+	HTMLURL      string        `xml:"htmlUrl,attr,omitempty"`
+	HTMLURLLower string        `xml:"htmlurl,attr,omitempty"`
+	Outlines     []opmlOutline `xml:"outline,omitempty"`
 }
 
 func ReadOPML(path string) ([]string, error) {
@@ -39,7 +43,11 @@ func ReadOPML(path string) ([]string, error) {
 	defer f.Close()
 
 	var doc opmlDoc
-	if err := xml.NewDecoder(f).Decode(&doc); err != nil {
+	decoder := xml.NewDecoder(f)
+	decoder.Strict = false
+	decoder.Entity = xml.HTMLEntity
+	decoder.CharsetReader = charset.NewReaderLabel
+	if err := decoder.Decode(&doc); err != nil {
 		return nil, err
 	}
 
@@ -47,8 +55,8 @@ func ReadOPML(path string) ([]string, error) {
 	var walk func([]opmlOutline)
 	walk = func(outlines []opmlOutline) {
 		for _, o := range outlines {
-			if strings.TrimSpace(o.XMLURL) != "" {
-				urls = append(urls, strings.TrimSpace(o.XMLURL))
+			if feedURL := o.FeedURL(); feedURL != "" {
+				urls = append(urls, feedURL)
 			}
 			if len(o.Outlines) > 0 {
 				walk(o.Outlines)
@@ -108,4 +116,14 @@ func uniqueStrings(in []string) []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+func (o opmlOutline) FeedURL() string {
+	if v := strings.TrimSpace(o.XMLURL); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(o.XMLURLLower); v != "" {
+		return v
+	}
+	return ""
 }

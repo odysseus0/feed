@@ -17,6 +17,9 @@ func openDB(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// SQLite allows one writer at a time; serialize connections to avoid busy/locked storms.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if _, err := db.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
 		db.Close()
 		return nil, err

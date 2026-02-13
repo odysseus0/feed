@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/mmcdole/gofeed"
@@ -31,7 +32,7 @@ func normalizeURL(raw string) (string, error) {
 	return u.String(), nil
 }
 
-func DiscoverFeedURL(ctx context.Context, client *http.Client, parser *gofeed.Parser, rawURL string) (string, error) {
+func DiscoverFeedURL(ctx context.Context, client *http.Client, parser *gofeed.Parser, rawURL, userAgent string) (string, error) {
 	normalized, err := normalizeURL(rawURL)
 	if err != nil {
 		return "", err
@@ -41,48 +42,61 @@ func DiscoverFeedURL(ctx context.Context, client *http.Client, parser *gofeed.Pa
 	if err != nil {
 		return "", err
 	}
+	if strings.TrimSpace(userAgent) == "" {
+		userAgent = "feed/0.1"
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/xml, application/atom+xml, application/rss+xml, application/feed+json, text/xml, text/html, */*;q=0.8")
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("request failed: %s", resp.Status)
-	}
-
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return "", err
 	}
-
-	if _, err := parser.Parse(bytes.NewReader(body)); err == nil {
-		return normalized, nil
+	if len(body) == 0 {
+		return "", fmt.Errorf("empty response body from %s", normalized)
 	}
 
-	base, err := url.Parse(normalized)
+	effectiveURL := normalized
+	if resp.Request != nil && resp.Request.URL != nil {
+		effectiveURL = resp.Request.URL.String()
+	}
+
+	if _, err := parser.Parse(bytes.NewReader(body)); err == nil {
+		return effectiveURL, nil
+	}
+
+	base, err := url.Parse(effectiveURL)
 	if err != nil {
 		return "", err
 	}
 	candidates := discoverFeedCandidates(body, base)
-	if len(candidates) == 0 {
-		return "", fmt.Errorf("no feed discovered at %s", normalized)
+	if len(candidates) > 0 {
+		return candidates[0], nil
 	}
-	return candidates[0], nil
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("request failed: %s", resp.Status)
+	}
+	return "", fmt.Errorf("no feed discovered at %s", effectiveURL)
 }
 
 func discoverFeedCandidates(body []byte, base *url.URL) []string {
-	types := map[string]struct{}{
-		"application/rss+xml":   {},
-		"application/atom+xml":  {},
-		"application/feed+json": {},
-		"application/xml":       {},
-		"text/xml":              {},
-	}
-
 	root, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil
+	}
+
+	resolvedBase := base
+	if baseHref := findBaseHref(root); baseHref != "" {
+		if u, err := url.Parse(baseHref); err == nil {
+			resolvedBase = base.ResolveReference(u)
+		}
 	}
 
 	out := make([]string, 0)
@@ -91,20 +105,49 @@ func discoverFeedCandidates(body []byte, base *url.URL) []string {
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "link") {
 			attrs := attrMap(n)
-			rel := strings.ToLower(attrs["rel"])
-			typeAttr := strings.ToLower(attrs["type"])
+			if !isAlternateRel(attrs["rel"]) {
+				goto children
+			}
 			href := strings.TrimSpace(attrs["href"])
-			if href != "" && strings.Contains(rel, "alternate") {
-				_, typeAllowed := types[typeAttr]
-				if typeAllowed || strings.Contains(typeAttr, "rss") || strings.Contains(typeAttr, "atom") || strings.Contains(typeAttr, "json") {
-					if u, err := url.Parse(href); err == nil {
-						abs := base.ResolveReference(u).String()
-						if _, ok := seen[abs]; !ok {
-							seen[abs] = struct{}{}
-							out = append(out, abs)
-						}
-					}
+			if href == "" {
+				goto children
+			}
+			typeAttr := strings.ToLower(strings.TrimSpace(attrs["type"]))
+			if !isFeedLinkType(typeAttr, href) {
+				goto children
+			}
+			if typeAttr == "application/json" && strings.Contains(strings.ToLower(href), "/wp-json/") {
+				goto children
+			}
+			if u, err := url.Parse(href); err == nil {
+				abs := resolvedBase.ResolveReference(u).String()
+				if _, ok := seen[abs]; !ok {
+					seen[abs] = struct{}{}
+					out = append(out, abs)
 				}
+			}
+		}
+	children:
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+	return out
+}
+
+func findBaseHref(root *html.Node) string {
+	var baseHref string
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if baseHref != "" {
+			return
+		}
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "base") {
+			attrs := attrMap(n)
+			if href := strings.TrimSpace(attrs["href"]); href != "" {
+				baseHref = href
+				return
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -112,7 +155,38 @@ func discoverFeedCandidates(body []byte, base *url.URL) []string {
 		}
 	}
 	walk(root)
-	return out
+	return baseHref
+}
+
+func isAlternateRel(rel string) bool {
+	for _, token := range strings.Fields(strings.ToLower(rel)) {
+		if token == "alternate" {
+			return true
+		}
+	}
+	return false
+}
+
+func isFeedLinkType(typeAttr, href string) bool {
+	typeAttr = strings.ToLower(strings.TrimSpace(typeAttr))
+	switch typeAttr {
+	case "application/rss+xml", "application/atom+xml", "application/feed+json", "application/json", "application/xml", "text/xml":
+		return true
+	}
+	if typeAttr != "" {
+		return strings.Contains(typeAttr, "rss") || strings.Contains(typeAttr, "atom") || strings.Contains(typeAttr, "feed")
+	}
+
+	h := strings.ToLower(strings.TrimSpace(href))
+	checkPath := h
+	if u, err := url.Parse(href); err == nil && u.Path != "" {
+		checkPath = strings.ToLower(u.Path)
+	}
+	ext := path.Ext(checkPath)
+	if ext == ".rss" || ext == ".atom" || ext == ".xml" || ext == ".json" {
+		return true
+	}
+	return strings.Contains(h, "/feed") || strings.Contains(h, "rss") || strings.Contains(h, "atom")
 }
 
 func attrMap(n *html.Node) map[string]string {
