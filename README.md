@@ -19,10 +19,12 @@ A local-first RSS CLI built in Go.
 ## Install
 
 ```bash
-go build -o feed .
+go build -o feed ./cmd/feed
 ```
 
 Optional: move `feed` into your PATH.
+
+Compatibility: `go build -o feed .` still works during the transition, but `./cmd/feed` is the canonical entrypoint.
 
 ## Quickstart
 
@@ -135,10 +137,13 @@ Environment variables:
 
 ## Architecture
 
-- Command layer: `cmd_*.go`
-- Fetch/discovery/rendering: `fetch.go`, `discover.go`, `render.go`, `sanitize.go`
-- Storage/query layer: `store_*.go`, `db.go`
-- OPML support: `opml.go`
+- Entrypoint: `cmd/feed/main.go` (with root compatibility shim in `main.go`)
+- CLI layer: `internal/cli`
+- Config: `internal/config`
+- Storage/query layer + migrations: `internal/store`
+- Fetch/discovery/rendering/sanitization: `internal/fetch`
+- OPML support: `internal/opml`
+- Shared domain types: `internal/model`
 
 ## Development
 
