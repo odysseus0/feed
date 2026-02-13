@@ -2,7 +2,9 @@ package opml
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -37,14 +39,14 @@ type opmlOutline struct {
 }
 
 func ReadOPML(path string) ([]string, error) {
-	f, err := os.Open(path)
+	r, err := openOPML(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer r.Close()
 
 	var doc opmlDoc
-	decoder := xml.NewDecoder(f)
+	decoder := xml.NewDecoder(r)
 	decoder.Strict = false
 	decoder.Entity = xml.HTMLEntity
 	decoder.CharsetReader = charset.NewReaderLabel
@@ -67,6 +69,21 @@ func ReadOPML(path string) ([]string, error) {
 	walk(doc.Body.Outlines)
 
 	return uniqueStrings(urls), nil
+}
+
+func openOPML(path string) (io.ReadCloser, error) {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		resp, err := http.Get(path)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("fetch %s: %s", path, resp.Status)
+		}
+		return resp.Body, nil
+	}
+	return os.Open(path)
 }
 
 func WriteOPML(w io.Writer, feeds []model.Feed) error {

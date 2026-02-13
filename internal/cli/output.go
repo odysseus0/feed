@@ -29,21 +29,22 @@ func writeEntriesTable(out io.Writer, entries []Entry, wide bool) {
 				formatDate(e.PublishedAt),
 				e.Read,
 				e.Starred,
-				compactText(e.URL, 48),
-				compactText(oneLine(e.Summary), 90),
+				e.URL,
+				oneLine(e.Summary),
 			)
 		}
 	} else {
-		fmt.Fprintln(tw, "ID\tFEED\tTITLE\tDATE\tSUMMARY")
+		fmt.Fprintln(tw, "ID\tFEED\tTITLE\tDATE\tURL\tSUMMARY")
 		for _, e := range entries {
 			fmt.Fprintf(
 				tw,
-				"%d\t%s\t%s\t%s\t%s\n",
+				"%d\t%s\t%s\t%s\t%s\t%s\n",
 				e.ID,
 				compactText(e.FeedTitle, 24),
 				compactText(displayEntryTitle(e), 56),
 				formatDate(e.PublishedAt),
-				compactText(oneLine(e.Summary), 90),
+				e.URL,
+				oneLine(e.Summary),
 			)
 		}
 	}

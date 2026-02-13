@@ -100,44 +100,63 @@ func newGetEntriesCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.
 
 func newGetEntryCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "entry <id>",
-		Short: "Get full entry content",
-		Args:  cobra.ExactArgs(1),
+		Use:   "entry <id> [id...]",
+		Short: "Get full entry content (supports multiple IDs)",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := requireApp(getApp)
 			if err != nil {
 				return err
 			}
-			id, err := parseID(args[0])
-			if err != nil {
-				return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
-			}
-			entry, err := app.store.GetEntry(cmd.Context(), id)
-			if err != nil {
-				return fmt.Errorf("get entry: %w", err)
+
+			ids := make([]int64, 0, len(args))
+			for _, arg := range args {
+				id, err := parseID(arg)
+				if err != nil {
+					return fmt.Errorf("%w: %v", store.ErrInvalidInput, err)
+				}
+				ids = append(ids, id)
 			}
 
 			if getOutput() == OutputJSON {
-				return writeJSON(os.Stdout, entry)
+				entries := make([]any, 0, len(ids))
+				for _, id := range ids {
+					entry, err := app.store.GetEntry(cmd.Context(), id)
+					if err != nil {
+						return fmt.Errorf("get entry %d: %w", id, err)
+					}
+					entries = append(entries, entry)
+				}
+				return writeJSON(os.Stdout, entries)
 			}
 
-			title := strings.TrimSpace(entry.Title)
-			if title == "" {
-				title = fallback(entry.URL, "(untitled)")
-			}
-			date := formatDate(entry.PublishedAt)
-			url := fallback(entry.URL, "-")
-			fmt.Fprintf(os.Stdout, "# %s\n", title)
-			fmt.Fprintf(os.Stdout, "source: %s | date: %s | url: %s\n\n", entry.FeedTitle, date, url)
+			for i, id := range ids {
+				if i > 0 {
+					fmt.Fprintf(os.Stdout, "\n---\n\n")
+				}
+				entry, err := app.store.GetEntry(cmd.Context(), id)
+				if err != nil {
+					return fmt.Errorf("get entry %d: %w", id, err)
+				}
 
-			content := strings.TrimSpace(entry.ContentMD)
-			if content == "" {
-				content = strings.TrimSpace(entry.Summary)
+				title := strings.TrimSpace(entry.Title)
+				if title == "" {
+					title = fallback(entry.URL, "(untitled)")
+				}
+				date := formatDate(entry.PublishedAt)
+				url := fallback(entry.URL, "-")
+				fmt.Fprintf(os.Stdout, "# %s\n", title)
+				fmt.Fprintf(os.Stdout, "source: %s | date: %s | url: %s\n\n", entry.FeedTitle, date, url)
+
+				content := strings.TrimSpace(entry.ContentMD)
+				if content == "" {
+					content = strings.TrimSpace(entry.Summary)
+				}
+				if content == "" {
+					content = url
+				}
+				fmt.Fprintln(os.Stdout, content)
 			}
-			if content == "" {
-				content = url
-			}
-			fmt.Fprintln(os.Stdout, content)
 			return nil
 		},
 	}

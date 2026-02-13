@@ -15,7 +15,7 @@ import (
 const (
 	defaultStaleMinutes    = 30
 	defaultFetchConcurrent = 10
-	defaultHTTPTimeoutSec  = 20
+	defaultHTTPTimeoutSec  = 5
 )
 
 const (

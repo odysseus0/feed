@@ -28,8 +28,8 @@ type ImportReport struct {
 
 func newImportCmd(getApp func() *App, getOutput func() OutputFormat) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "import <file.opml>",
-		Short: "Import feeds from OPML",
+		Use:   "import <file-or-url.opml>",
+		Short: "Import feeds from OPML file or URL",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := requireApp(getApp)
