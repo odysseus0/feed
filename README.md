@@ -4,7 +4,7 @@ RSS gives you the content you chose, not what an algorithm chose. But 92 feeds p
 
 `feed` is a headless RSS engine that lets an AI agent read your feeds for you — your own algorithm.
 
-![feed demo](demo.gif)
+[![feed demo](demo.png)](https://youtu.be/BidsdLdKdDA)
 
 With `feed`, you can:
 
