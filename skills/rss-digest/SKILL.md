@@ -11,9 +11,10 @@ Surface what's worth reading from RSS feeds. Requires `feed` CLI (`brew install 
 ## Workflow
 
 1. **Scan** — `feed get entries --limit 50` for recent unread (title, feed, date, URL, summary). Auto-fetches if stale. If 0 results, run `feed get stats` — if 0 feeds, import starter set: `feed import https://github.com/odysseus0/feed/raw/main/hn-popular-blogs-2025.opml` and retry.
-3. **Triage** — Pick 5-10 high-signal posts based on the user's prompt. If no specific interest given, prioritize surprising, contrarian, or unusually insightful pieces.
-4. **Read + Synthesize** — For each picked entry, read the full content and summarize in 2-3 sentences. Prefer fetching the URL directly (e.g. WebFetch) if available — keeps full text out of context. Otherwise use `feed get entry <id>` to read the stored content. Parallelize when possible.
-5. **Present** — Compile the summaries into a digest. Group by theme if natural clusters emerge.
+2. **Triage** — Pick 5-10 high-signal posts based on the user's prompt. If no specific interest given, prioritize surprising, contrarian, or unusually insightful pieces.
+3. **Read + Synthesize** — For each picked entry, read the full content and summarize it briefly. Prefer fetching the URL directly (e.g. WebFetch) if available — keeps full text out of context. Otherwise use `feed get entry <id>` to read the stored content. Parallelize when possible.
+4. **Present** — Compile the summaries into a digest. Group by theme if natural clusters emerge.
+
 ## Commands
 
 ```
@@ -30,6 +31,6 @@ feed get stats                          # database stats
 ## Notes
 
 - The entries table includes full URLs. Prefer fetching URLs directly (keeps full text out of your context window). Fall back to `feed get entry <id>` if you don't have a web fetch tool.
-- Do NOT mark entries as read. The user decides what to mark read.
+- Do not mark entries as read. The user decides what to mark read.
 - Default output is table — most token-efficient for scanning. Avoid `-o json`.
 - Filter by feed if too many entries: `--feed <feed_id>`.
